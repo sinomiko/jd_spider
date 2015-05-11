@@ -26,7 +26,7 @@ class Jd_Db:
     
     def db_init(self, name):
         try:
-            conn = sqlite3.connect(self.db_path_name, timeout = 300)
+            conn = sqlite3.connect(self.db_path_name, timeout = 1000)
             sql_creat_table = '''
                         create table if not exists jd_info(
                         id integer primary key autoincrement, 
@@ -46,7 +46,7 @@ class Jd_Db:
         sql_query_data = ''' select http_url from jd_info where is_product = 1 and is_processed = 0''' 
         one = 0
         try:
-            conn = sqlite3.connect(self.db_path_name, timeout = 500)
+            conn = sqlite3.connect(self.db_path_name, timeout = 1000)
             results = conn.execute(sql_query_data)
             one = results.fetchone()[0]
             if one:
@@ -63,7 +63,7 @@ class Jd_Db:
         sql_query_data = ''' select http_url from jd_info where is_extended = 0''' 
         one = 0
         try:
-            conn = sqlite3.connect(self.db_path_name, timeout = 500)
+            conn = sqlite3.connect(self.db_path_name, timeout = 1000)
             results = conn.execute(sql_query_data)
             one = results.fetchone()[0]
             if one:
@@ -79,7 +79,7 @@ class Jd_Db:
     def db_query_count(self, product = 0, extend = 0, process = 0):
         sql_query_data = ''' select count(*) from jd_info where is_product = '%d' and is_extended = '%d' and is_processed = '%d' ''' % (product, extend, process)
         try:
-            conn = sqlite3.connect(self.db_path_name, timeout = 500)
+            conn = sqlite3.connect(self.db_path_name, timeout = 1000)
             total = conn.execute(sql_query_data)
             total_count = total.fetchone()[0]
         except Exception, e:
@@ -97,7 +97,7 @@ class Jd_Db:
     def do_db_insert(self, http_url, product = 0, extend = 0, process = 0):
         sql_query_data = ''' select count(*) from jd_info where http_url = '%s' ''' % http_url
         try:
-            conn = sqlite3.connect(self.db_path_name, timeout = 500)
+            conn = sqlite3.connect(self.db_path_name, timeout = 1000)
             total = conn.execute(sql_query_data)
             if total.fetchone()[0] > 0:
                 return
@@ -112,7 +112,7 @@ class Jd_Db:
     def db_update_process(self, http_url, process = 1):    
         sql_insert_data = '''update jd_info set acc_time = '%s', is_processed = '%d' where http_url = '%s' ''' %(jd_utils.current_time(), process, http_url)
         try:
-            conn = sqlite3.connect(self.db_path_name, timeout = 500)
+            conn = sqlite3.connect(self.db_path_name, timeout = 1000)
             conn.execute(sql_insert_data)
             conn.commit()
         except Exception, e:
@@ -124,7 +124,7 @@ class Jd_Db:
     def db_update_extend(self, http_url, extend = 1 ):    
         sql_insert_data = '''update jd_info set acc_time = '%s', is_extended = '%d' where http_url = '%s' ''' %(jd_utils.current_time(), extend , http_url)
         try:
-            conn = sqlite3.connect(self.db_path_name, timeout = 500)
+            conn = sqlite3.connect(self.db_path_name, timeout = 1000)
             conn.execute(sql_insert_data)
             conn.commit()
         except Exception, e:
@@ -135,7 +135,7 @@ class Jd_Db:
     def do_db_dump(self):
         sql_dump_data = '''select * from jd_info'''
         try:
-            conn = sqlite3.connect(self.db_path_name, timeout = 500)
+            conn = sqlite3.connect(self.db_path_name, timeout = 1000)
             cursor = conn.execute(sql_dump_data)
             for row in cursor:
                 print row[0],row[1],row[2],row[3],row[4],row[5]
@@ -143,6 +143,18 @@ class Jd_Db:
             print '---'+str(e)+'--'
         finally:
             conn.close()
+    
+    def db_unprocess_count(self):
+        total_unprocess = 0
+        sql_query_unprocessed = ''' select count(*) from jd_info where is_product = 1 and is_processed = 0''' 
+        try:
+            conn = sqlite3.connect(self.db_path_name, timeout = 1000)
+            total_unprocess = conn.execute(sql_query_unprocessed).fetchone()[0]
+        except Exception, e:
+            print '---'+str(e)+'--'
+        finally:
+            conn.close()
+        return total_unprocess
         
     def db_statistics(self):
         sql_query_total = ''' select count(*) from jd_info ''' 
@@ -150,9 +162,9 @@ class Jd_Db:
         sql_query_product_processed = ''' select count(*) from jd_info where is_product = 1 and is_processed = 1''' 
         sql_query_product_unprocessed = ''' select count(*) from jd_info where is_product = 1 and is_processed = 0''' 
         sql_query_extended = ''' select count(*) from jd_info where is_extended = 1''' 
-        sql_query_unextended = ''' select count(*) from jd_info where is_extended = 0''' 
-        conn = sqlite3.connect(self.db_path_name, timeout = 500)
+        sql_query_unextended = ''' select count(*) from jd_info where is_extended = 0'''   
         try:
+            conn = sqlite3.connect(self.db_path_name, timeout = 1000)
             total = conn.execute(sql_query_total).fetchone()[0]
             total_pr = conn.execute(sql_query_product).fetchone()[0]
             total_pr_proc = conn.execute(sql_query_product_processed).fetchone()[0]

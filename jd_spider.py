@@ -42,6 +42,9 @@ class UrlExtendThread(threading.Thread):
         print "Starting %d ...\n" % self.threadID
 	jdb = Jd_Db(jd_config.SQLITE_DB)
         while True:
+	    if jdb.db_unprocess_count() > 300:
+		#print u"系统负载重，暂停展开网页...\n"
+		continue
 	    full_url = jdb.db_query_extend()
             if full_url:
 		get_product_ids(full_url, jdb)
@@ -81,16 +84,25 @@ class JdAnysis:
 	    return
 	product_url = jd_item_url % product_id
 	try:
-	    product_html = jd_utils.encoding(urllib2.urlopen(product_url).read())
+	    request = urllib2.Request(product_url, headers = jd_headers)
+	    product_html = jd_utils.encoding(urllib2.urlopen(request).read())
 	except UnicodeDecodeError:
 	    print u"GBK/Unicode编解码错误!"
 	    return
+	except Exception:
+	    print u"未知错误!"
+	    f.close()
+	    return	
 	product_soup = BeautifulSoup(product_html)
-	product_name = product_soup.find('h1').string
 	
-	print u"线程[%d]正在处理 %d[%s]" % ( self.tid, product_id, jd_utils.encoding(product_name) )
+	product_name = product_soup.find('h1')
+	if not product_name:
+	    return;
+	
+	print u"线程[%d]正在处理 %d" % ( self.tid, product_id )
 	f = codecs.open(result_file, 'wb',encoding = 'utf-8')   
-	f.write(u"产品名称：" + product_name + u"\n")
+	f.write(u"产品名称：" + product_name.string + u"\n")
+	
         while  True:
             product_consult_url = jd_consult_url % ( product_id, page_id )
             #print ("=============> DOING... " + product_consult_url)
@@ -100,16 +112,25 @@ class JdAnysis:
 	    except UnicodeDecodeError:
 		print u"GBK/Unicode编解码错误!"
 		f.close()
-		return		
+		return	
+	    except urllib2.HTTPError, e:
+		print u"HTTP错误!"
+		f.close()
+		return
+	    except Exception:
+		print u"未知错误!"
+		f.close()
+		return
             consult_soup = BeautifulSoup(consult_html)
             self.get_page_consult(consult_soup, f) 
             pagination = consult_soup.find('div', attrs = {"class":"Pagination"})
-            if not pagination.findAll('a',attrs = {"class":"next"}) :
-                break;
-            else:
-                page_id = page_id + 1;
+            if pagination and pagination.findAll('a',attrs = {"class":"next"}) :
+		page_id = page_id + 1;
                 f.flush()
-	print u"线程[%d]处理完毕 %d[%s]" % ( self.tid, product_id, product_name )
+	    else:
+		break
+		
+	print u"线程[%d]处理完毕 %d" % ( self.tid, product_id )
         f.close()
         
     def get_page_consult(self, page_soup, store = 0):
@@ -131,8 +152,15 @@ class JdAnysis:
                         print strs              
 
 def get_product_ids(url, jdb):
-    request = urllib2.Request(url, headers = jd_headers)
-    url_html = jd_utils.encoding(urllib2.urlopen(request).read())
+    try:
+	request = urllib2.Request(url, headers = jd_headers)
+	url_html = jd_utils.encoding(urllib2.urlopen(request).read())
+    except UnicodeDecodeError:
+	print u"GBK/Unicode编解码错误!"
+	return	    
+    except urllib2.HTTPError, e:
+	print u"HTTP错误!"
+	return    
     url_soup = BeautifulSoup(url_html)
     url_extend = url_soup.findAll('a', attrs = {"href": re.compile(r"^http://\w+.jd.com/.+\.(htm|html)$")})
     for url_item in url_extend:

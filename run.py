@@ -33,20 +33,34 @@ if __name__ == '__main__':
     main_log.info("初始化","开启URL抓取线程")
     for i in range(2):
 	t = UrlExtendThread(i)
+	#t.setDaemon(True) #如果设置后台，输出就前台无法显示了
 	t.start()
 	time.sleep(2)
 	threads_extend.append(t)
 
     main_log.info("初始化","开启数据抓取线程")
-    for i in range(10, 15):
+    for i in range(10, 18):
 	t = UrlThread(i)
 	t.start()
 	time.sleep(2)
 	threads_product.append(t)
     
     while True:
-        time.sleep(5)
+        time.sleep(10)
 	jdb.db_statistics()
+	print u"线程状态：",
+	for item in threads_extend:
+	    if item.isAlive():
+		print 'A ',
+	    else:
+		print 'D ',
+	print ' | ',
+	for item in threads_product:
+	    if item.isAlive():
+		print 'A ',
+	    else:
+		print 'D ',
+	print
     
         
     print u"程序结束..."
