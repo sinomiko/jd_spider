@@ -99,3 +99,7 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+# IDE related files
+*.wpr
+*.wpu
