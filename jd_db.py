@@ -26,7 +26,7 @@ class Jd_Db:
     
     def db_init(self, name):
         try:
-            conn = sqlite3.connect(self.db_path_name, timeout = 1000)
+            conn = sqlite3.connect(self.db_path_name, timeout = 300)
             sql_creat_table = '''
                         create table if not exists jd_info(
                         id integer primary key autoincrement, 
@@ -37,8 +37,8 @@ class Jd_Db:
                         is_processed tinyint DEFAULT 0
                         );'''
             conn.execute(sql_creat_table)
-        except Exception, e:
-            print '---'+str(e)+'--'
+        except Exception as e:
+            print ('---'+str(e)+'--')
         finally:
             conn.close()
     
@@ -53,8 +53,8 @@ class Jd_Db:
                 sql_update_data = '''update jd_info set acc_time = '%s', is_processed = 1 where http_url = '%s' ''' %(jd_utils.current_time(), one)
                 conn.execute(sql_update_data)
                 conn.commit()
-        except Exception, e:
-            print '---'+str(e)+'--'
+        except Exception as e:
+            print ('---'+str(e)+'--')
         finally:
             conn.close()
         return one
@@ -70,8 +70,8 @@ class Jd_Db:
                 sql_update_data = '''update jd_info set acc_time = '%s', is_extended = 1 where http_url = '%s' ''' %(jd_utils.current_time(), one)
                 conn.execute(sql_update_data)
                 conn.commit()
-        except Exception, e:
-            print '---'+str(e)+'--'
+        except Exception as e:
+            print ('---'+str(e)+'--')
         finally:
             conn.close()
         return one
@@ -82,8 +82,8 @@ class Jd_Db:
             conn = sqlite3.connect(self.db_path_name, timeout = 1000)
             total = conn.execute(sql_query_data)
             total_count = total.fetchone()[0]
-        except Exception, e:
-            print '---'+str(e)+'--'
+        except Exception as e:
+            print ('---'+str(e)+'--')
         finally:
             conn.close()
         return total_count
@@ -104,8 +104,8 @@ class Jd_Db:
             sql_insert_data = '''insert into jd_info(http_url,acc_time,is_product,is_extended,is_processed) values ('%s', '%s', '%d', '%d', '%d')'''%(http_url,jd_utils.current_time(),product,extend,process)
             conn.execute(sql_insert_data)
             conn.commit()
-        except Exception, e:
-            print '---'+str(e)+'--'
+        except Exception as e:
+            print ('---'+str(e)+'--')
         finally:
             conn.close()
     
@@ -115,8 +115,8 @@ class Jd_Db:
             conn = sqlite3.connect(self.db_path_name, timeout = 1000)
             conn.execute(sql_insert_data)
             conn.commit()
-        except Exception, e:
-            print '---'+str(e)+'--'
+        except Exception as e:
+            print ('---'+str(e)+'--')
         finally:
             conn.close()
         pass
@@ -127,8 +127,8 @@ class Jd_Db:
             conn = sqlite3.connect(self.db_path_name, timeout = 1000)
             conn.execute(sql_insert_data)
             conn.commit()
-        except Exception, e:
-            print '---'+str(e)+'--'
+        except Exception as e:
+            print ('---'+str(e)+'--')
         finally:
             conn.close()
             
@@ -138,23 +138,23 @@ class Jd_Db:
             conn = sqlite3.connect(self.db_path_name, timeout = 1000)
             cursor = conn.execute(sql_dump_data)
             for row in cursor:
-                print row[0],row[1],row[2],row[3],row[4],row[5]
-        except Exception, e:
-            print '---'+str(e)+'--'
+                print (row[0],row[1],row[2],row[3],row[4],row[5])
+        except Exception as e:
+            print ('---'+str(e)+'--')
         finally:
             conn.close()
-    
+            
     def db_unprocess_count(self):
         total_unprocess = 0
         sql_query_unprocessed = ''' select count(*) from jd_info where is_product = 1 and is_processed = 0''' 
         try:
             conn = sqlite3.connect(self.db_path_name, timeout = 1000)
             total_unprocess = conn.execute(sql_query_unprocessed).fetchone()[0]
-        except Exception, e:
-            print '---'+str(e)+'--'
+        except Exception as e:
+            print ('---'+str(e)+'--')
         finally:
             conn.close()
-        return total_unprocess
+        return total_unprocess    
         
     def db_statistics(self):
         sql_query_total = ''' select count(*) from jd_info ''' 
@@ -162,23 +162,23 @@ class Jd_Db:
         sql_query_product_processed = ''' select count(*) from jd_info where is_product = 1 and is_processed = 1''' 
         sql_query_product_unprocessed = ''' select count(*) from jd_info where is_product = 1 and is_processed = 0''' 
         sql_query_extended = ''' select count(*) from jd_info where is_extended = 1''' 
-        sql_query_unextended = ''' select count(*) from jd_info where is_extended = 0'''   
+        sql_query_unextended = ''' select count(*) from jd_info where is_extended = 0''' 
+        conn = sqlite3.connect(self.db_path_name, timeout = 1000)
         try:
-            conn = sqlite3.connect(self.db_path_name, timeout = 1000)
             total = conn.execute(sql_query_total).fetchone()[0]
             total_pr = conn.execute(sql_query_product).fetchone()[0]
             total_pr_proc = conn.execute(sql_query_product_processed).fetchone()[0]
             total_pr_unproc = conn.execute(sql_query_product_unprocessed).fetchone()[0]
             total_ext = conn.execute(sql_query_extended).fetchone()[0]
             total_unext = conn.execute(sql_query_unextended).fetchone()[0]
-        except Exception, e:
-            print '---'+str(e)+'--'
+        except Exception as e:
+            print ('---'+str(e)+'--')
         finally:
             conn.close()
-        str_url = u"URL总数：%d，URL已展开：%d，URL未展开：%d" % (total, total_ext, total_unext)
-        str_prd = u"产品总数：%d，已处理：%d，未处理：%d" % (total_pr, total_pr_proc, total_pr_unproc)
-        print str_url
-        print str_prd
+        str_url = "URL总数：%d，URL已展开：%d，URL未展开：%d" % (total, total_ext, total_unext)
+        str_prd = "产品总数：%d，已处理：%d，未处理：%d" % (total_pr, total_pr_proc, total_pr_unproc)
+        print (str_url)
+        print (str_prd)
         db_log.info("数据库统计",str_url)
         db_log.info("数据库统计",str_prd)
        

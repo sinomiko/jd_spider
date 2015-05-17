@@ -20,11 +20,13 @@ threads_product = []
 
 if __name__ == '__main__':
     
+    if not os.path.exists(jd_config.PRJ_PATH):
+        os.makedirs(jd_config.PRJ_PATH)
+        
     main_log = jd_logger.Jd_Logger("MAIN")
     
     if not os.path.exists(jd_config.JDSPR_RESULT):
-	main_log.info("初始化","创建结果保存目录")
-        os.mkdir(jd_config.JDSPR_RESULT)
+        os.makedirs(jd_config.JDSPR_RESULT)
 	
     jdb = jd_db.Jd_Db(jd_config.SQLITE_DB)
 
@@ -32,36 +34,34 @@ if __name__ == '__main__':
 
     main_log.info("初始化","开启URL抓取线程")
     for i in range(2):
-	t = UrlExtendThread(i)
-	#t.setDaemon(True) #如果设置后台，输出就前台无法显示了
-	t.start()
-	time.sleep(2)
-	threads_extend.append(t)
+        t = UrlExtendThread(i)
+        t.start()
+        time.sleep(2)
+        threads_extend.append(t)
 
     main_log.info("初始化","开启数据抓取线程")
-    for i in range(10, 18):
-	t = UrlThread(i)
-	t.start()
-	time.sleep(2)
-	threads_product.append(t)
-    
+    for i in range(10, 17):
+        t = UrlThread(i)
+        t.start()
+        time.sleep(2)
+        threads_product.append(t)
+		
     while True:
-        time.sleep(10)
-	jdb.db_statistics()
-	print u"线程状态：",
-	for item in threads_extend:
-	    if item.isAlive():
-		print 'A ',
-	    else:
-		print 'D ',
-	print ' | ',
-	for item in threads_product:
-	    if item.isAlive():
-		print 'A ',
-	    else:
-		print 'D ',
-	print
-    
+        time.sleep(20)
+        jdb.db_statistics()
+        print ("线程状态：", end = '')
+        for item in threads_extend:
+            if item.isAlive():
+                print ('A ', end = '')
+            else:
+                print ('D ', end = '')
+        print (' | ', end = '')
+        for item in threads_product:
+            if item.isAlive():
+                print ('A ', end = '')
+            else:
+                print ('D ', end = '')
+        print("")		
         
-    print u"程序结束..."
+    print ("程序结束...")
     

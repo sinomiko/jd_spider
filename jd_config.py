@@ -4,11 +4,12 @@
 import os
 import random
 
-SQLITE_PATH = os.getcwd()+"/database/"
-SQLITE_DB = u"jd_db.db"
+PRJ_PATH = os.path.expanduser("~/jd_spider/")
 
-JDSPR_PWD = os.getcwd()
-JDSPR_RESULT = JDSPR_PWD+"/www.jd.com"
+SQLITE_PATH = PRJ_PATH + "/database/"
+SQLITE_DB = "jd_db.db"
+
+JDSPR_RESULT = PRJ_PATH+"/www.jd.com"
 
 JDSPR_START_URL = "http://channel.jd.com/electronic.html"
 
@@ -16,7 +17,7 @@ JDSPR_START_URL = "http://channel.jd.com/electronic.html"
 DEBUG_SW = True
 
 # logging settings
-LOG_PATH = os.getcwd()
+LOG_PATH = PRJ_PATH
 LOG_FORMAT = "%(levelname)s [%(class)s.%(method)s]: %(message)s (%(asctime)-15s)"
 LOG_FILE_NAME = "jd_spider.log"
 
@@ -45,9 +46,9 @@ USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/535.11 (KHTML, like Gecko) Chrome/17.0.963.56 Safari/535.11",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_3) AppleWebKit/535.20 (KHTML, like Gecko) Chrome/19.0.1036.7 Safari/535.20",
     "Opera/9.80 (Macintosh; Intel Mac OS X 10.6.8; U; fr) Presto/2.9.168 Version/11.52",
+    "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.152 Safari/537.36"
+    "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:37.0) Gecko/20100101 Firefox/37.0",
 ]
 
-HEADERS = {'User-Agent':random.choice(USER_AGENTS)}
-
-def random_header():
-    return {'User-Agent':random.choice(USER_AGENTS)}
+def random_agent():
+    return random.choice(USER_AGENTS)

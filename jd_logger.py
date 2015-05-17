@@ -33,7 +33,7 @@ class Jd_Logger(object):
         
         # print the message out if the logger is set to be verbose
         if self.verbose:
-            print u"%s: [%s - %s()] %s:" % (type.upper(), cls_name, method_name, message)
+            print ("%s: [%s - %s()] %s:" % (type.upper(), cls_name, method_name, message))
         
         # add extra params
         extras = {
