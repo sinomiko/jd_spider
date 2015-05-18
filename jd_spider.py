@@ -1,6 +1,4 @@
-#!/usr/bin/python
-#-*- coding: utf-8 -*-
-#encoding=utf-8
+#!/usr/bin/python -*- coding: utf-8 -*- encoding=utf-8
 from jd_db import Jd_Db
 import jd_config
 import jd_utils
@@ -16,7 +14,10 @@ import threading
 import time
 from bs4 import BeautifulSoup
 
+import errno
+
 exitFlag = 0
+gdb_lock = threading.RLock()
 
 jd_item_url = "http://item.jd.com/%d.html"
 jd_consult_url = "http://club.jd.com/allconsultations/%d-%d-1.html"
@@ -46,20 +47,28 @@ class UrlExtendThread(threading.Thread):
         self.threadID = threadID
         
     def run(self):
-        print ("Starting %d ...\n" % self.threadID)
+        print ("启动线程 %d ...\n" % self.threadID)
         jdb = Jd_Db(jd_config.SQLITE_DB)
         while True:
-            if jdb.db_unprocess_count() > 300:                
+            if jdb.db_unprocess_count() > 200000:                
                 #print ("系统负载重，暂停展开网页...\n")
-                time.sleep(200)
-                continue            
-            full_url = jdb.db_query_extend()
-            if full_url:
-                get_product_ids(full_url, jdb)
-                time.sleep(20)
-            else:
-                time.sleep(5)
-        print ("Exiting %d ..." % self.threadID)
+                time.sleep(60)
+                continue 
+                
+            with gdb_lock:
+                while True:
+                    full_url = jdb.db_query_extend()
+                    if full_url:
+                        if re.match(r'^http://(help|red|tuan|auction|jr|smart|gongyi|app|en|media|m|myjd|chat|read|chongzhi|z|giftcard|fw|you|mobile).jd.com', full_url) or re.match(r'^http://www.jd.com/compare/', full_url) or re.match(r'^http://club.jd.com/consultation/', full_url) :
+                            print("线程[%d]正在处理：%s [删除]" % (self.threadID, full_url) )
+                            jdb.db_drop_rubbish(full_url)
+                        else:
+                            break
+                    
+            print("线程[%d]正在处理：%s" % (self.threadID, full_url) )
+            get_product_ids(full_url, jdb)
+                    
+        print ("退出线程 %d ..." % self.threadID)
 
 class UrlThread(threading.Thread):
     def __init__(self, threadID):
@@ -67,17 +76,20 @@ class UrlThread(threading.Thread):
         self.threadID = threadID
         
     def run(self):
-        print ("Starting %d ...\n" % self.threadID)
+        print ("启动线程 %d ...\n" % self.threadID)
         jda = JdAnysis(self.threadID)
         jdb = Jd_Db(jd_config.SQLITE_DB)
         while True:
-            full_url = jdb.db_query_process()
+            with gdb_lock:
+                full_url = jdb.db_query_process()
+                
             if full_url:
                 jda.get_product_consults(full_url)
             else:
-                time.sleep(2)
+                print("线程[%d]提取产品为空，等待。。。" % self.threadID)
+                time.sleep(10)
 	    
-        print ("Exiting %d ..." % self.threadID)
+        print ("退出线程 %d ..." % self.threadID)
 
 class JdAnysis:
     def __init__(self, tid = 0):
@@ -91,15 +103,28 @@ class JdAnysis:
         page_id = 1    
         product_id = int(product_url.split('.')[2].split('/')[1])
         product_url = jd_item_url % product_id
-        try:
-            request = urllib.request.Request(product_url, headers = self.agent)
-            product_html = jd_utils.encoding(urllib.request.urlopen(request).read())
-        except UnicodeDecodeError:
-            print ("GBK/Unicode编解码错误!")
-            return
-        except Exception as e:
-            print ("其它异常:"+str(e))
-            return
+        
+        flag = 0
+        while True:
+            try:
+                request = urllib.request.Request(product_url, headers = self.agent)
+                product_html = jd_utils.encoding(urllib.request.urlopen(request).read())
+                #操作正常
+                break
+            except UnicodeDecodeError:
+                print ("GBK/Unicode编解码错误!")
+                return
+            except Exception as e:
+                if flag > 3 :
+                    print ("线程[%d]网络异常，放弃该产品" % self.tid) 
+                    return
+                if e.errno == errno.ECONNRESET:
+                    flag = flag + 1
+                    time.sleep(10)
+                    print ("线程[%d]重试中...[%d]"%( self.tid, flag) )
+                    continue
+                print ("1.其它异常:"+str(e))
+                return
 	
         product_name = None
         product_ts = None
@@ -112,18 +137,23 @@ class JdAnysis:
             product_ts = product_type.findAll('a')
         
         if not product_name or not product_ts:
-            print("1.产品名称和类别提取错误，返回！Check[%s]",product_url)
+            print("1.产品名称和类别提取错误，返回！Check[%s]" % product_url)
             print(self.agent['User-Agent'])
             return
         
+        result_file = None
         try:
             i = 0    
             for pt_item in product_ts:
-                result_path = result_path + "/" + pt_item.string + "/"
-                i = i + 1
-                #目录类别的深度
-                if i > 3:
-                    break
+                if pt_item:
+                    result_path = result_path + "/" + pt_item.string + "/"
+                    i = i + 1
+                    #目录类别的深度
+                    if i > 3:
+                        break
+                else:
+                    print("2.提取产品名称和目录错误！:%s, Check[%s]" % ( str(e), product_url) )
+                    return
             
             if not os.path.exists(result_path):
                 os.makedirs(result_path) 
@@ -136,24 +166,41 @@ class JdAnysis:
             f = codecs.open(result_file, 'wb',encoding = 'utf-8')   
             f.write("产品名称：" + product_name.string + "\n")
         except Exception as e:
-            print("2.提取产品名称和目录错误！:%s, Check[%s]", str(e), product_url)
-            if os.path.exists(result_file):
+            print("3.提取产品名称和目录错误！:%s, Check[%s]" % ( str(e), product_url) )
+            if result_file and os.path.exists(result_file):
                 os.remove(result_file)
             return
         
         while  True:
             product_consult_url = jd_consult_url % ( product_id, page_id )
             #print ("=============> DOING... " + product_consult_url)
-            try:
-                request = urllib.request.Request(product_consult_url, headers = self.agent)
-                consult_html = jd_utils.encoding(urllib.request.urlopen(request).read())
-            except UnicodeDecodeError:
-                print ("GBK/Unicode编解码错误!")
-                f.close()
-                return		
-            except Exception as e:
-                print ("其它异常:"+str(e))
-                return
+            flag = 0
+            progress = "."
+            while True:
+                print(progress)
+                progress = progress + "."
+                try:
+                    request = urllib.request.Request(product_consult_url, headers = self.agent)
+                    consult_html = jd_utils.encoding(urllib.request.urlopen(request).read())
+                    #操作正常
+                    break
+                except UnicodeDecodeError:
+                    print ("GBK/Unicode编解码错误!")
+                    f.close()
+                    return		
+                except Exception as e:
+                    if flag > 3 :
+                        print ("线程[%d]网络异常，放弃该产品" % self.tid) 
+                        f.close()
+                        return
+                    if e.errno == errno.ECONNRESET:
+                        flag = flag + 1
+                        time.sleep(10)
+                        print ("线程[%d]重试中...[%d]" % ( self.tid, flag) )
+                        continue
+                    print ("2.其它异常:"+str(e))
+                    f.close()
+                    return
             
             consult_soup = BeautifulSoup(consult_html)
             self.get_page_consult(consult_soup, f) 
@@ -188,14 +235,25 @@ class JdAnysis:
                             print (strs )             
 
 def get_product_ids(url, jdb):
-    try:
-        request = urllib.request.Request(url, headers = jd_headers)
-        url_html = jd_utils.encoding(urllib.request.urlopen(request).read())
-        url_soup = BeautifulSoup(url_html)
-        url_extend = url_soup.findAll('a', attrs = {"href": re.compile(r"^http://\w+.jd.com/.+\.(htm|html)$")})
-    except Exception as e:
-        print ("展开产品链接异常:" + str(e) )
-        return
+    flag = 0
+    while True:
+        try:
+            request = urllib.request.Request(url, headers = jd_headers)
+            url_html = jd_utils.encoding(urllib.request.urlopen(request).read())
+            url_soup = BeautifulSoup(url_html)
+            url_extend = url_soup.findAll('a', attrs = {"href": re.compile(r"^http://\w+.jd.com/.+\.(htm|html)$")})
+            break
+        except Exception as e:
+            if flag > 3 :
+                print ("网络异常，放弃展开URL") 
+                return
+            if e.errno == errno.ECONNRESET:
+                flag = flag + 1
+                time.sleep(20)
+                print ("重试中...[%d]" % flag)
+                continue
+            print ("展开产品链接异常:" + str(e) )
+            return
     
     for url_item in url_extend:
         url_str = url_item.get("href")
@@ -204,8 +262,9 @@ def get_product_ids(url, jdb):
             jdb.db_insert_product(m.string)	
         else:
             #("http://red.jd.com/", "http://tuan.jd.com/", "http://auction.jd.com/", "http://jr.jd.com/", "http://smart.jd.com/")
-            if not re.match(r'^http://(help|red|tuan|auction|jr|smart|gongyi|app|en|media).jd.com', url_str):
-                jdb.db_insert_no_product(url_str)
+            if not re.match(r'^http://(help|red|tuan|auction|jr|smart|gongyi|app|en|media|m|myjd|chat|read|chongzhi|z|giftcard|fw|you|mobile).jd.com', url_str) and not re.match(r'^http://www.jd.com/compare/', url_str) and not re.match(r'^http://club.jd.com/consultation/', url_str) :
+                with gdb_lock:
+                    jdb.db_insert_no_product(url_str)
 	
 
 if __name__ == "__main__":
