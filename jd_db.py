@@ -6,6 +6,7 @@ import os
 import time
 import sqlite3
 import hashlib
+import re
 
 import jd_config
 import jd_utils
@@ -38,7 +39,7 @@ class Jd_Db:
                         );'''
             conn.execute(sql_creat_table)
         except Exception as e:
-            print ('---'+str(e)+'--')
+            print ('-1--'+str(e)+'--')
         finally:
             conn.close()
     
@@ -54,25 +55,36 @@ class Jd_Db:
                 conn.execute(sql_update_data)
                 conn.commit()
         except Exception as e:
-            print ('---'+str(e)+'--')
+            print ('-2--'+str(e)+'--')
         finally:
             conn.close()
         return one
     
     def db_query_extend(self):
-        sql_query_data = ''' select http_url from jd_info where is_extended = 0''' 
         one = 0
         try:
             conn = sqlite3.connect(self.db_path_name, timeout = 2000, check_same_thread = False)
-            results = conn.execute(sql_query_data)
-            one = results.fetchone()[0]
-            if one:
-                sql_update_data = '''update jd_info set acc_time = '%s', is_extended = 1 where http_url = '%s' ''' %(jd_utils.current_time(), one)
-                conn.execute(sql_update_data)
-                conn.commit()
+            while True:
+                sql_query_data = ''' select http_url from jd_info where is_extended = 0''' 
+                results = conn.execute(sql_query_data)
+                one = results.fetchone()[0]
+                #optimize for database
+                if one:
+                    if re.match(r'^http://(help|red|tuan|auction|jr|smart|gongyi|app|en|media|m|myjd|chat|read|chongzhi|z|giftcard|fw|you|mobile|me|wiki).jd.com', one) or re.match(r'^http://www.jd.com/compare/', one) or re.match(r'^http://club.jd.com/consultation/', one) :
+                        #print("正在处理：%s [删除]" % ( one) )
+                        sql_delete_date = ''' delete from jd_info where http_url = '%s' ''' % one
+                        conn.execute(sql_delete_date)
+                        conn.commit()
+                        continue
+                    # Got one
+                    sql_update_data = '''update jd_info set acc_time = '%s', is_extended = 1 where http_url = '%s' ''' %(jd_utils.current_time(), one)
+                    conn.execute(sql_update_data)
+                    conn.commit()
+                    break
         except Exception as e:
-            print ('---'+str(e)+'--')
+            print ('-3--'+str(e)+'--')
         finally:
+            conn.commit()
             conn.close()
         return one
             
@@ -83,7 +95,7 @@ class Jd_Db:
             total = conn.execute(sql_query_data)
             total_count = total.fetchone()[0]
         except Exception as e:
-            print ('---'+str(e)+'--')
+            print ('-4--'+str(e)+'--')
         finally:
             conn.close()
         return total_count
@@ -105,7 +117,7 @@ class Jd_Db:
             conn.execute(sql_insert_data)
             conn.commit()
         except Exception as e:
-            print ('---'+str(e)+'--')
+            print ('-5--'+str(e)+'--')
         finally:
             conn.close()
     
@@ -116,7 +128,7 @@ class Jd_Db:
             conn.execute(sql_insert_data)
             conn.commit()
         except Exception as e:
-            print ('---'+str(e)+'--')
+            print ('-6--'+str(e)+'--')
         finally:
             conn.close()
         pass
@@ -128,7 +140,7 @@ class Jd_Db:
             conn.execute(sql_insert_data)
             conn.commit()
         except Exception as e:
-            print ('---'+str(e)+'--')
+            print ('-7--'+str(e)+'--')
         finally:
             conn.close()
             
@@ -139,7 +151,7 @@ class Jd_Db:
             conn.execute(sql_delete_date)
             conn.commit()
         except Exception as e:
-            print ('---'+str(e)+'--')
+            print ('-8--'+str(e)+'--')
         finally:
             conn.close()
             
@@ -151,7 +163,7 @@ class Jd_Db:
             for row in cursor:
                 print (row[0],row[1],row[2],row[3],row[4],row[5])
         except Exception as e:
-            print ('---'+str(e)+'--')
+            print ('-9--'+str(e)+'--')
         finally:
             conn.close()
             
@@ -162,7 +174,7 @@ class Jd_Db:
             conn = sqlite3.connect(self.db_path_name,  timeout = 2000, check_same_thread = False)
             total_unprocess = conn.execute(sql_query_unprocessed).fetchone()[0]
         except Exception as e:
-            print ('---'+str(e)+'--')
+            print ('-10--'+str(e)+'--')
         finally:
             conn.close()
         return total_unprocess    
@@ -183,10 +195,10 @@ class Jd_Db:
             total_ext = conn.execute(sql_query_extended).fetchone()[0]
             total_unext = conn.execute(sql_query_unextended).fetchone()[0]
         except Exception as e:
-            print ('---'+str(e)+'--')
+            print ('-11--'+str(e)+'--')
         finally:
             conn.close()
-        str_url = "URL总数：%d，URL已展开：%d，URL未展开：%d" % (total, total_ext, total_unext)
+        str_url = "\nURL总数：%d，URL已展开：%d，URL未展开：%d" % (total, total_ext, total_unext)
         str_prd = "产品总数：%d，已处理：%d，未处理：%d" % (total_pr, total_pr_proc, total_pr_unproc)
         print (str_url)
         print (str_prd)

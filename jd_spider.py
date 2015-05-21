@@ -59,14 +59,15 @@ class UrlExtendThread(threading.Thread):
                 while True:
                     full_url = jdb.db_query_extend()
                     if full_url:
-                        if re.match(r'^http://(help|red|tuan|auction|jr|smart|gongyi|app|en|media|m|myjd|chat|read|chongzhi|z|giftcard|fw|you|mobile).jd.com', full_url) or re.match(r'^http://www.jd.com/compare/', full_url) or re.match(r'^http://club.jd.com/consultation/', full_url) :
-                            print("线程[%d]正在处理：%s [删除]" % (self.threadID, full_url) )
-                            jdb.db_drop_rubbish(full_url)
-                        else:
-                            break
+                        #if re.match(r'^http://(help|red|tuan|auction|jr|smart|gongyi|app|en|media|m|myjd|chat|read|chongzhi|z|giftcard|fw|you|mobile).jd.com', full_url) or re.match(r'^http://www.jd.com/compare/', full_url) or re.match(r'^http://club.jd.com/consultation/', full_url) :
+                        #    print("线程[%d]正在处理：%s [删除]" % (self.threadID, full_url) )
+                        #    jdb.db_drop_rubbish(full_url)
+                        #else:
+                        #    break
+                        break
                     
             print("线程[%d]正在处理：%s" % (self.threadID, full_url) )
-            get_product_ids(full_url, jdb)
+            get_product_ids(full_url, jdb, self.threadID)
                     
         print ("退出线程 %d ..." % self.threadID)
 
@@ -177,7 +178,7 @@ class JdAnysis:
             flag = 0
             progress = "."
             while True:
-                print(progress)
+                print(progress, end='')
                 progress = progress + "."
                 try:
                     request = urllib.request.Request(product_consult_url, headers = self.agent)
@@ -228,13 +229,13 @@ class JdAnysis:
                     tail_t = anw.find("感谢您对京东的支持！祝您购物愉快！")
                     if tail_t > 0:
                         anw = anw[:tail_t]
-                        strs = ask + "\n=>" + anw + "\n"               
+                        strs = "?>" + ask + "\n=>" + anw + "\n"               
                         if(store):
                             store.write(strs)
                         else:
                             print (strs )             
 
-def get_product_ids(url, jdb):
+def get_product_ids(url, jdb, tid):
     flag = 0
     while True:
         try:
@@ -255,17 +256,29 @@ def get_product_ids(url, jdb):
             print ("展开产品链接异常:" + str(e) )
             return
     
+    prds = []
+    no_prds = []
     for url_item in url_extend:
         url_str = url_item.get("href")
         m = re.match(r'^http://item.jd.com/\d+.html$', url_str)
         if m:
-            jdb.db_insert_product(m.string)	
+            #jdb.db_insert_product(m.string)
+            prds.append( m.string )           
         else:
             #("http://red.jd.com/", "http://tuan.jd.com/", "http://auction.jd.com/", "http://jr.jd.com/", "http://smart.jd.com/")
-            if not re.match(r'^http://(help|red|tuan|auction|jr|smart|gongyi|app|en|media|m|myjd|chat|read|chongzhi|z|giftcard|fw|you|mobile).jd.com', url_str) and not re.match(r'^http://www.jd.com/compare/', url_str) and not re.match(r'^http://club.jd.com/consultation/', url_str) :
-                with gdb_lock:
-                    jdb.db_insert_no_product(url_str)
-	
+            if not re.match(r'^http://(help|red|tuan|auction|jr|smart|gongyi|app|en|media|m|myjd|chat|read|chongzhi|z|giftcard|fw|you|mobile|wiki|me).jd.com', url_str) and not re.match(r'^http://www.jd.com/compare/', url_str) and not re.match(r'^http://club.jd.com/consultation/', url_str) :
+                no_prds.append( url_str )              
+                #with gdb_lock:
+                #    jdb.db_insert_no_product(url_str)
+        
+    # Really need to do with database
+    if prds or no_prds :
+        with gdb_lock:
+            print ('线程[%d] 插入数据库...' % tid)
+            for item in prds:
+                jdb.db_insert_product(item)
+            for item in no_prds:
+                jdb.db_insert_no_product(item)
 
 if __name__ == "__main__":
     jd = JdAnysis()

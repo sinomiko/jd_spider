@@ -4,8 +4,7 @@
 import os
 import random
 
-PRJ_PATH = os.path.expanduser("~/jd_spider/")
-
+PRJ_PATH = "D:/MyDocs/taozj/jd_spider_data/"
 SQLITE_PATH = PRJ_PATH + "/database/"
 SQLITE_DB = "jd_db.db"
 
