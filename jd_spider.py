@@ -1,15 +1,16 @@
 #!/usr/bin/python -*- coding: utf-8 -*- encoding=utf-8
 from jd_db import Jd_Db
 import jd_config
-import jd_utils
 import jd_logger
 
 import urllib.request
 import urllib.error
 import urllib
 import codecs
+import zlib
 import re
 import os
+import jd_utils
 import threading
 import time
 from bs4 import BeautifulSoup
@@ -21,12 +22,13 @@ gdb_lock = threading.RLock()
 
 jd_item_url = "http://item.jd.com/%d.html"
 jd_consult_url = "http://club.jd.com/allconsultations/%d-%d-1.html"
-jd_headers = {"Origin":"http://www.jd.com/",
-              "Referer":"http://www.jd.com/",
+jd_headers = {"Referer":"http://www.jd.com/",
               "Content-type": "application/x-www-form-urlencoded; charset=UTF-8",
               "Accept": "*/*",
+              "Connection": "keep-alive",
+              "Accept-Encoding":"gzip, deflate",
                "User-Agent":"Mozilla/5.0 (Windows NT 6.1; WOW64; rv:37.0) Gecko/20100101 Firefox/37.0",
-               "Cookie":"__jda=122270672.1231994341.1431153572.1431218361.1431221231.6; __jdv=122270672|direct|-|none|-; __jdu=1231994341; ipLocation=%u5317%u4EAC; areaId=1; ipLoc-djd=1-72-2799-0; __jdc=122270672; user-key=c6e4b38e-59d7-48d4-8d1b-f597704633d0; cn=1; __jdb=122270672.12.1231994341|6.1431221231"
+               "Cookie":"user-key=23013c2b-329d-422c-9aa1-d0b6600c187a; cn=0; ipLocation=%u5317%u4EAC; areaId=1; ipLoc-djd=1-72-2799-0; __jda=122270672.763825332.1431154352.1432700135.1432782483.14; __jdb=122270672.3.763825332|14.1432782483; __jdc=122270672; __jdv=122270672|jd.com|-|-|not set; __jdu=763825332"
                }
 
 def random_jd_header():
@@ -59,14 +61,15 @@ class UrlExtendThread(threading.Thread):
                 while True:
                     full_url = jdb.db_query_extend()
                     if full_url:
-                        if re.match(r'^http://(help|red|tuan|auction|jr|smart|gongyi|app|en|media|m|myjd|chat|read|chongzhi|z|giftcard|fw|you|mobile).jd.com', full_url) or re.match(r'^http://www.jd.com/compare/', full_url) or re.match(r'^http://club.jd.com/consultation/', full_url) :
-                            print("线程[%d]正在处理：%s [删除]" % (self.threadID, full_url) )
-                            jdb.db_drop_rubbish(full_url)
-                        else:
-                            break
+                        #if re.match(r'^http://(help|red|tuan|auction|jr|smart|gongyi|app|en|media|m|myjd|chat|read|chongzhi|z|giftcard|fw|you|mobile).jd.com', full_url) or re.match(r'^http://www.jd.com/compare/', full_url) or re.match(r'^http://club.jd.com/consultation/', full_url) :
+                        #    print("线程[%d]正在处理：%s [删除]" % (self.threadID, full_url) )
+                        #    jdb.db_drop_rubbish(full_url)
+                        #else:
+                        #    break
+                        break
                     
             print("线程[%d]正在处理：%s" % (self.threadID, full_url) )
-            get_product_ids(full_url, jdb)
+            get_product_ids(full_url, jdb, self.threadID)
                     
         print ("退出线程 %d ..." % self.threadID)
 
@@ -107,8 +110,15 @@ class JdAnysis:
         flag = 0
         while True:
             try:
+                self.agent['Referer'] = product_url
                 request = urllib.request.Request(product_url, headers = self.agent)
-                product_html = jd_utils.encoding(urllib.request.urlopen(request).read())
+                g_response = urllib.request.urlopen(request)
+                if g_response.info().get('Content-Encoding') == 'gzip':
+                    g_read = zlib.decompress(g_response.read(), 16+zlib.MAX_WBITS)
+                else:    
+                    g_read = g_response.read()
+                
+                product_html = jd_utils.encoding(g_read)
                 #操作正常
                 break
             except UnicodeDecodeError:
@@ -162,26 +172,35 @@ class JdAnysis:
                 return
             
             #print ("产品保存地址：%s",result_path)    
-            print ("线程[%d]正在处理 %d[%s]" % ( self.tid, product_id, product_name.text ))
+            print ("线程[%d]正在处理商品 %d" % ( self.tid, product_id ))
             f = codecs.open(result_file, 'wb',encoding = 'utf-8')   
-            f.write("产品名称：" + product_name.string + "\n")
+            f.write("产品名称：" + product_name.text + "\n")
         except Exception as e:
             print("3.提取产品名称和目录错误！:%s, Check[%s]" % ( str(e), product_url) )
             if result_file and os.path.exists(result_file):
-                os.remove(result_file)
+                try:
+                    os.remove(result_file)
+                except:
+                    pass
             return
-        
+        count = 0 
         while  True:
             product_consult_url = jd_consult_url % ( product_id, page_id )
             #print ("=============> DOING... " + product_consult_url)
             flag = 0
             progress = "."
             while True:
-                print(progress)
                 progress = progress + "."
                 try:
                     request = urllib.request.Request(product_consult_url, headers = self.agent)
-                    consult_html = jd_utils.encoding(urllib.request.urlopen(request).read())
+                    g_response = urllib.request.urlopen(request)
+                    if g_response.info().get('Content-Encoding') == 'gzip':
+                        g_read = zlib.decompress(g_response.read(), 16+zlib.MAX_WBITS)
+                    else:    
+                        g_read = g_response.read()
+                
+                    consult_html = jd_utils.encoding(g_read)
+                
                     #操作正常
                     break
                 except UnicodeDecodeError:
@@ -203,7 +222,16 @@ class JdAnysis:
                     return
             
             consult_soup = BeautifulSoup(consult_html)
-            self.get_page_consult(consult_soup, f) 
+            count = count + self.get_page_consult(consult_soup, f)
+            if count == 0 and progress == "..":
+                print("线程[%s] - 商品咨询为空，删除商品文件:%s" %( self.tid , result_file))
+                if result_file and os.path.exists(result_file):
+                    try:
+                        os.remove(result_file)
+                    except:
+                        pass
+                return
+                
             pagination = consult_soup.find('div', attrs = {"class":"Pagination"})
             if not pagination:
                 break;
@@ -213,11 +241,12 @@ class JdAnysis:
                 page_id = page_id + 1;
                 f.flush()
             
-        print ("线程[%d]处理完毕 %d[%s]" % ( self.tid, product_id, product_name.text ))
+        print ("线程[%d]处理完毕，评论[%d] %d" % ( self.tid, count, product_id ))
         f.close()
         
     def get_page_consult(self, page_soup, store = 0):
-        liResult = page_soup.findAll('div', attrs = {"class":"Refer_List" }) 
+        liResult = page_soup.findAll('div', attrs = {"class":"Refer_List" })
+        count = 0
         for consult in liResult:
             consult_EntryArray = consult.findAll('div', attrs = {"class": ["refer refer_bg", "refer"]})
             for consult_item in consult_EntryArray:
@@ -228,18 +257,27 @@ class JdAnysis:
                     tail_t = anw.find("感谢您对京东的支持！祝您购物愉快！")
                     if tail_t > 0:
                         anw = anw[:tail_t]
-                        strs = ask + "\n=>" + anw + "\n"               
+                        strs = "?>" + ask + "\n=>" + anw + "\n"               
                         if(store):
                             store.write(strs)
                         else:
-                            print (strs )             
+                            print (strs )
+                        count = count + 1
+        return count
 
-def get_product_ids(url, jdb):
+def get_product_ids(url, jdb, tid):
     flag = 0
     while True:
         try:
             request = urllib.request.Request(url, headers = jd_headers)
-            url_html = jd_utils.encoding(urllib.request.urlopen(request).read())
+            g_response = urllib.request.urlopen(request)
+            if g_response.info().get('Content-Encoding') == 'gzip':
+                g_read = zlib.decompress(g_response.read(), 16+zlib.MAX_WBITS)
+            else:    
+                g_read = g_response.read()
+                
+            url_html = jd_utils.encoding(g_read)
+            
             url_soup = BeautifulSoup(url_html)
             url_extend = url_soup.findAll('a', attrs = {"href": re.compile(r"^http://\w+.jd.com/.+\.(htm|html)$")})
             break
@@ -255,17 +293,29 @@ def get_product_ids(url, jdb):
             print ("展开产品链接异常:" + str(e) )
             return
     
+    prds = []
+    no_prds = []
     for url_item in url_extend:
         url_str = url_item.get("href")
         m = re.match(r'^http://item.jd.com/\d+.html$', url_str)
         if m:
-            jdb.db_insert_product(m.string)	
+            #jdb.db_insert_product(m.string)
+            prds.append( m.string )           
         else:
             #("http://red.jd.com/", "http://tuan.jd.com/", "http://auction.jd.com/", "http://jr.jd.com/", "http://smart.jd.com/")
-            if not re.match(r'^http://(help|red|tuan|auction|jr|smart|gongyi|app|en|media|m|myjd|chat|read|chongzhi|z|giftcard|fw|you|mobile).jd.com', url_str) and not re.match(r'^http://www.jd.com/compare/', url_str) and not re.match(r'^http://club.jd.com/consultation/', url_str) :
-                with gdb_lock:
-                    jdb.db_insert_no_product(url_str)
-	
+            if not re.match(r'^http://(help|red|tuan|auction|jr|smart|gongyi|app|en|media|m|myjd|chat|read|chongzhi|z|giftcard|fw|you|mobile|wiki|me).jd.com', url_str) and not re.match(r'^http://www.jd.com/compare/', url_str) and not re.match(r'^http://club.jd.com/consultation/', url_str) :
+                no_prds.append( url_str )              
+                #with gdb_lock:
+                #    jdb.db_insert_no_product(url_str)
+        
+    # Really need to do with database
+    if prds or no_prds :
+        with gdb_lock:
+            print ('线程[%d] 插入数据库...' % tid)
+            for item in prds:
+                jdb.db_insert_product(item)
+            for item in no_prds:
+                jdb.db_insert_no_product(item)
 
 if __name__ == "__main__":
     jd = JdAnysis()
