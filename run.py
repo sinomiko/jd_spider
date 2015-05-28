@@ -33,10 +33,10 @@ if __name__ == '__main__':
 	
     jdb = jd_db.Jd_Db(jd_config.SQLITE_DB)
 
-    jd_spider.get_product_ids(jd_config.JDSPR_START_URL, jdb, 0)
+    #jd_spider.get_product_ids(jd_config.JDSPR_START_URL, jdb)
 
     main_log.info("初始化","开启URL抓取线程")
-    for i in range(3):
+    for i in range(5):
         t = UrlExtendThread(i)
         t.start()
         time.sleep(2)

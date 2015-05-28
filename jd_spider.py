@@ -190,7 +190,6 @@ class JdAnysis:
             flag = 0
             progress = "."
             while True:
-                progress = progress + "."
                 try:
                     request = urllib.request.Request(product_consult_url, headers = self.agent)
                     g_response = urllib.request.urlopen(request)
