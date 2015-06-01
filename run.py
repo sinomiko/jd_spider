@@ -13,10 +13,11 @@ import time
 import threading
 
 from jd_spider import UrlExtendThread
-from jd_spider import UrlThread
+from jd_spider import CommentThread, ConosultThread
 
 threads_extend = []
-threads_product = []
+threads_conosult = []
+threads_comment = []
 
 gdb_lock = threading.RLock()
 
@@ -33,26 +34,33 @@ if __name__ == '__main__':
 	
     jdb = jd_db.Jd_Db(jd_config.SQLITE_DB)
 
-    #jd_spider.get_product_ids(jd_config.JDSPR_START_URL, jdb)
+    #jd_spider.get_product_ids(jd_config.JDSPR_START_URL, jdb, 0)
 
-    main_log.info("初始化","开启URL抓取线程")
-    for i in range(5):
-        t = UrlExtendThread(i)
-        t.start()
-        time.sleep(2)
-        threads_extend.append(t)
+    #main_log.info("初始化","开启URL抓取线程")
+    #for i in range(2):
+    #    t = UrlExtendThread(i)
+    #    t.start()
+    #    time.sleep(2)
+    #    threads_extend.append(t)
 
     #while True:
     #    time.sleep(10)
     #    with jd_spider.gdb_lock:
     #        jdb.db_statistics()
 
-    main_log.info("初始化","开启数据抓取线程")
-    for i in range(10, 16):
-        t = UrlThread(i)
+   # main_log.info("初始化","开启商品咨询抓取线程")
+   # for i in range(10, 13):
+   #     t = ConosultThread(i)
+   #     t.start()
+   #     time.sleep(2)
+   #     threads_conosult.append(t)
+    
+    main_log.info("初始化","开启商品评论抓取线程")
+    for i in range(20, 23):
+        t = CommentThread(i)
         t.start()
         time.sleep(2)
-        threads_product.append(t)
+        threads_comment.append(t)
 		
     while True:
         time.sleep(30)
@@ -65,12 +73,18 @@ if __name__ == '__main__':
             else:
                 print ('D ', end = '')
         print (' | ', end = '')
-        for item in threads_product:
+        for item in threads_conosult:
             if item.isAlive():
                 print ('A ', end = '')
             else:
                 print ('D ', end = '')
-        print("")		
+        print (' | ', end = '')	
+        for item in threads_comment:
+            if item.isAlive():
+                print ('A ', end = '')
+            else:
+                print ('D ', end = '')
+        print("")        
         
     print ("程序结束...")
     
