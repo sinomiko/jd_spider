@@ -15,11 +15,10 @@ import jd_utils
 import threading
 import time
 from bs4 import BeautifulSoup
+import random
 
 import errno
 
-#This already include the headless browser -- Phantomjs
-from selenium import webdriver
 
 
 exitFlag = 0
@@ -254,7 +253,7 @@ class JdAnysisConsult:
             consult_soup = BeautifulSoup(consult_html)
             count = count + self.get_page_consult(consult_soup, f)
             if count == 0 and progress == "..":
-                print("咨询线程[%s] - 商品咨询为空，删除商品文件:%s" %( self.tid , result_file))
+                print("咨询线程[%d] - 商品咨询为空，删除商品文件:%s" %( self.tid , result_file))
                 if result_file and os.path.exists(result_file):
                     try:
                         os.remove(result_file)
@@ -300,11 +299,7 @@ class JdAnysisConsult:
 class JdAnysisComment:
     def __init__(self, tid = 0):
         self.tid = tid
-        self.agent = None
-        # accelerate the fetch speed
-        service_args = ['--load-images=no','--disk-cache=true','--output-encoding=utf8']
-        self.driver = webdriver.PhantomJS(service_args=service_args)
-        self.driver.set_window_size(1120, 550)        
+        self.agent = None     
         pass
     
     def get_product_comments(self, product_url):
@@ -400,32 +395,16 @@ class JdAnysisComment:
             while True:
                 progress = progress + "."
                 try:
-                    #self.agent = random_jd_header(product_url)
-                    #request = urllib.request.Request(product_comment_url, headers = self.agent)
-                    #g_response = urllib.request.urlopen(request)
-                    self.driver.get(product_comment_url)
+                    self.agent = random_jd_header(product_url)
+                    request = urllib.request.Request(product_comment_url, headers = self.agent)
+                    g_response = urllib.request.urlopen(request)
                     
-                    #if g_response.info().get('Content-Encoding') == 'gzip':
-                    #    g_read = zlib.decompress(g_response.read(), 16+zlib.MAX_WBITS)
-                    #else:    
-                    #    g_read = g_response.read()
-                    #scr = 'screen-%d.png'%(page_id)
-                    #self.driver.save_screenshot(scr)                    
-                    #comment_html = jd_utils.encoding(self.driver.page_source)
+                    if g_response.info().get('Content-Encoding') == 'gzip':
+                        g_read = zlib.decompress(g_response.read(), 16+zlib.MAX_WBITS)
+                    else:    
+                        g_read = g_response.read()
                     
-                    # force to load full
-                    scr_pic = '%s/screen.png'%(result_path)
-                    self.driver.save_screenshot(scr_pic)                    
-                    url_html = self.driver.page_source
-                    url_html = codecs.encode(url_html,"utf-8",'ignore')
-                    match = re.search(r"""(?<![-\w])                  #1
-                                      (?:(?:en)?coding|charset)   #2
-                                      (?:=(["'])?([-\w]+)(?(1)\1) #3
-                                      |:\s*([-\w]+))""".encode("utf8"),
-                                                       url_html, re.IGNORECASE|re.VERBOSE)
-                    encoding = match.group(match.lastindex) if match else b"utf8"
-                    
-                    comment_html = url_html.decode(encoding.decode("UTF-8"),'ignore')
+                    comment_html = jd_utils.encoding(g_read)
                 
                     #操作正常
                     break
@@ -453,16 +432,18 @@ class JdAnysisComment:
             #retry twice here:
             if count_t == 0 and retries < 3:
                 retries = retries + 1
-                print("Retrying with %s" %(product_comment_url))
-                scr_pic = '%s/err_screen-%d.png'%(result_path, page_id)
-                self.driver.save_screenshot(scr_pic)                    
+                if count != 0:
+                    # Refresh user agent
+                    self.agent = random_jd_header()
+                    time.sleep( random.randint(1, 7))
+                print("评论线程[%d] Retry[%d] with %s" %( self.tid, retries, product_comment_url))               
                 continue
             
             retries = 0
             count = count + count_t
             
             if count == 0 and progress == "..":
-                print("评论线程[%s] - 商品咨询为空，删除商品文件:%s" %( self.tid , result_file))
+                print("评论线程[%d] - 商品咨询为空，删除商品文件:%s" %( self.tid , result_file))
                 if result_file and os.path.exists(result_file):
                     try:
                         os.remove(result_file)
@@ -499,10 +480,11 @@ class JdAnysisComment:
                 dl_content = comm_content.findAll('dl')
                 for dl_item in dl_content:
                     if dl_item.dt and dl_item.dt.string and dl_item.dt.string == '心　　得：':
-                        strs = dl_item.dd.string.strip()
-                        if strs:
-                            result_str = result_str + strs + "\n"
-                            count = count + 1
+                        if dl_item.dd.string:
+                            strs = dl_item.dd.string.strip()
+                            if strs:
+                                result_str = result_str + strs + "\n"
+                                count = count + 1
         if(store):
             store.write(result_str)
         else:
