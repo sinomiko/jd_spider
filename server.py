@@ -8,6 +8,7 @@ import jd_spider
 import jd_logger
 
 import socket
+import socketserver
 
 
 import os
@@ -26,34 +27,35 @@ threads_conosult = []
 
 gdb_lock = threading.RLock()
 
-class DistributeThread(threading.Thread):
-    def __init__(self, host, port, tid):
-        threading.Thread.__init__(self)
-        self.host = host
-        self.port = port
-        self.threadID = tid
-        self.sk = socket.socket(socket.AF_INET,socket.SOCK_STREAM) 
+# Base Class
+class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    pass
+
+class DistributeThreadHandler(socketserver.BaseRequestHandler):
+    def __init__(self, request, client_address, server):
+        self.cur_thread = threading.current_thread().getName()
         self.jdb = jd_db.Jd_Db(jd_config.SQLITE_DB)
-    
-    def process_request(self, conn, addr):
+        socketserver.BaseRequestHandler.__init__(self, request, client_address, server)    
+
+    def handle(self):
         # 多个返回可能会被合并到一个数据包中
-        req_datas = conn.recv(2048).decode()
+        req_datas = self.request.recv(2048).decode()
         jreq_datas = eval(req_datas)
         for req_item in jreq_datas:
             if req_item['CLIENT'] != 0 and req_item['TYPE'] == 'REQ_URL':
                 with jd_spider.gdb_lock:
-                    full_url = jdb.db_query_comment()
-                print("分配[%d]-%s" % (req_item['CLIENT'], full_url))
+                    full_url = self.jdb.db_query_comment()
+                print("{%s}分配[%d]-%s" % (self.cur_thread, req_item['CLIENT'], full_url))
                 rep_url = {'CLIENT':req_item['CLIENT'],'TYPE':'REP_URL','DATA':{'PURL':full_url, 'PATH':jd_config.JDSPR_RESULT_SERVER}}
                 jrep_url = repr(rep_url) + ','
-                conn.sendall(jrep_url.encode())        
+                self.request.sendall(jrep_url.encode())        
             elif req_item['CLIENT'] != 0 and req_item['TYPE'] == 'FINISH':
                 # 暂不处理
-                print('处理结果:产品[%s]，数量[%d]，LUCK[%d]，PATH[%s]'% (req_item['DATA']['PURL'], \
+                print('{%s}处理结果:产品[%s]，数量[%d]，LUCK[%d]，PATH[%s]'% (self.cur_thread, req_item['DATA']['PURL'], \
                                     req_item['DATA']['CNT'], req_item['DATA']['LUCK'], req_item['DATA']['PATH']))
                 if req_item['DATA']['PURL'] and req_item['DATA']['CNT']:
                     with jd_spider.gdb_lock:
-                        jdb.db_update_comment(req_item['DATA']['PURL'], comment = 2)
+                        self.jdb.db_update_comment(req_item['DATA']['PURL'], comment = 2)
                     local_f = "%s/%d_comm.txt" %(jd_config.JDSPR_RESULT_SERVER, req_item['DATA']['PID'])
                     local_path = jd_config.JDSPR_RESULT + req_item['DATA']['PATH']
                     if os.path.exists(local_f):
@@ -63,19 +65,8 @@ class DistributeThread(threading.Thread):
                         os.system(cmd)
             else:
                 print("UKNOWN CLIENT REQUEST!")
-        conn.close()
-        
-    def run(self):
-        print ("启动商品评论服务器分发线程 %d ...\n" % self.threadID)
-        self.sk.bind((self.host,self.port))
-        self.sk.listen(1)
-        
-        jdb = jd_db.Jd_Db(jd_config.SQLITE_DB)
-        
-        while True:
-            conn, addr = self.sk.accept()
-            #print("SERVER[%d], request from %s" % (self.threadID, addr))
-            self.process_request(conn, addr)
+                
+        return
 
 
 if __name__ == '__main__':
@@ -110,8 +101,13 @@ if __name__ == '__main__':
         threads_conosult.append(t)
         
     print("初始化 -- 开启商品评论分发线程")
-    thread_distr = DistributeThread(HOST, PORT, 99)
-    thread_distr.start()
+    server = ThreadedTCPServer((HOST, PORT), DistributeThreadHandler)
+    # Start a thread with the server -- that thread will then start one
+    # more thread for each request
+    thread_distr = threading.Thread(target=server.serve_forever)
+    thread_distr.start()    
+    print("启动完成 -- 开启商品评论分发线程")
+    
     
     while True:
         time.sleep(30)

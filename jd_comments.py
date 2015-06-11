@@ -120,19 +120,22 @@ class CommentThread(threading.Thread):
             # 反馈服务器处理结果
             # PID-COUNT-LUCK
             if ret:
-                proc_result = {'CLIENT':self.CID,'TYPE':'FINISH','DATA':{'PURL':ret[0],'CNT':ret[1],'LUCK':ret[2],'PATH':ret[3], 'PID':ret[4]}}
-                ssh.connect(jd_config.SERVER_ADDR, port=int(22), username=jd_config.SERVER_USER, password=jd_config.SERVER_PASS)        
-                with SCPClient(ssh.get_transport()) as scp:
-                    product_id = ret[4]
-                    result_file = "%s/%d_comm.txt"%(jd_config.JDSPR_RESULT_LOCAL, product_id)
-                    result_f = "%s/%d_comm.txt"%(self.up_path, product_id)
-                    print('传送结果:%s-->%s' %(result_file, result_f))
-                    scp.put(result_file, result_f)            
-                    try:
-                        os.remove(result_file)
-                    except:
-                        pass                    
-                ssh.close()
+                try:
+                    proc_result = {'CLIENT':self.CID,'TYPE':'FINISH','DATA':{'PURL':ret[0],'CNT':ret[1],'LUCK':ret[2],'PATH':ret[3], 'PID':ret[4]}}
+                    ssh.connect(jd_config.SERVER_ADDR, port=int(22), username=jd_config.SERVER_USER, password=jd_config.SERVER_PASS)        
+                    with SCPClient(ssh.get_transport()) as scp:
+                        product_id = ret[4]
+                        result_file = "%s/%d_comm.txt"%(jd_config.JDSPR_RESULT_LOCAL, product_id)
+                        result_f = "%s/%d_comm.txt"%(self.up_path, product_id)
+                        print('传送结果:%s-->%s' %(result_file, result_f))
+                        scp.put(result_file, result_f)            
+                        try:
+                            os.remove(result_file)
+                        except:
+                            pass                    
+                    ssh.close()
+                except Exception as e:
+                    pass
             else:
                 proc_result = {'CLIENT':self.CID,'TYPE':'FINISH','DATA':{'PURL':'','CNT':0,'LUCK':0,'PATH':'', 'PID':0}}
             
@@ -278,10 +281,11 @@ class JdAnysisComment:
             comment_soup = BeautifulSoup(comment_html)
             count_t = self.get_page_comment(comment_soup, product_comment_url , f)
             
-            #retry about max 7 times here:
+            # Retry about max 10 times here:
+            # I hate JD
             lucky_flag = 1
             if count_t == 0:
-                if retries < 7:
+                if retries < 10:
                     retries = retries + 1
                     if count != 0:
                         # Refresh user agent

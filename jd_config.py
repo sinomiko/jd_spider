@@ -15,8 +15,8 @@ SERVER_ADDR = "192.3.90.124"
 # SERVER_ADDR = "192.168.1.163"
 # SERVER_ADDR = "127.0.0.1"
 SERVER_PORT = 12306
-SERVER_USER = "fakeaaa"
-SERVER_PASS = "fakebbb"
+SERVER_USER = "fakeuser"
+SERVER_PASS = "fakeuser"
 
 JDSPR_RESULT = PRJ_PATH+"/www.jd.com"
 JDSPR_RESULT_LOCAL = PRJ_PATH+"/jd_local"
