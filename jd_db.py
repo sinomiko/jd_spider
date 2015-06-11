@@ -12,6 +12,7 @@ import jd_config
 import jd_utils
 import jd_logger
 
+
 db_log = jd_logger.Jd_Logger("数据库")
 
 class Jd_Db:
@@ -28,6 +29,10 @@ class Jd_Db:
     def db_init(self, name):
         try:
             conn = sqlite3.connect(self.db_path_name, timeout = 300)
+            # Database for cons & comm
+            # 0 --> Untouched
+            # 1 --> Distributed
+            # 2 --> Finished
             sql_creat_table = '''
                         create table if not exists jd_info(
                         id integer primary key autoincrement, 
@@ -214,7 +219,8 @@ class Jd_Db:
         sql_query_product = ''' select count(*) from jd_info where is_product = 1''' 
         sql_query_product_cons = ''' select count(*) from jd_info where is_product = 1 and is_cons = 1''' 
         sql_query_product_uncons = ''' select count(*) from jd_info where is_product = 1 and is_cons = 0''' 
-        sql_query_product_comm = ''' select count(*) from jd_info where is_product = 1 and is_comm = 1''' 
+        sql_query_product_comm = ''' select count(*) from jd_info where is_product = 1 and is_comm = 2''' 
+        sql_query_product_comming = ''' select count(*) from jd_info where is_product = 1 and is_comm = 1''' 
         sql_query_product_uncomm = ''' select count(*) from jd_info where is_product = 1 and is_comm = 0''' 
         sql_query_exted = ''' select count(*) from jd_info where is_exted = 1''' 
         sql_query_unexted = ''' select count(*) from jd_info where is_exted = 0''' 
@@ -225,6 +231,7 @@ class Jd_Db:
             total_pr_cons = conn.execute(sql_query_product_cons).fetchone()[0]
             total_pr_uncons = conn.execute(sql_query_product_uncons).fetchone()[0]
             total_pr_comm = conn.execute(sql_query_product_comm).fetchone()[0]
+            total_pr_comming = conn.execute(sql_query_product_comming).fetchone()[0]
             total_pr_uncomm = conn.execute(sql_query_product_uncomm).fetchone()[0]
             total_ext = conn.execute(sql_query_exted).fetchone()[0]
             total_unext = conn.execute(sql_query_unexted).fetchone()[0]
@@ -234,7 +241,8 @@ class Jd_Db:
             conn.close()
         str_exted = "\nURL总数：%d，URL已展开：%d，URL未展开：%d" % (total, total_ext, total_unext)
         str_cons = "产品总数：%d，咨询已处理：%d，咨询未处理：%d" % (total_pr, total_pr_cons, total_pr_uncons)
-        str_comm = "产品总数：%d，评论已处理：%d，评论未处理：%d" % (total_pr, total_pr_comm, total_pr_uncomm)
+        str_comm = "产品总数：%d，评论已处理：%d，评论未处理：%d，评论正在处理：%d" \
+                % (total_pr, total_pr_comm, total_pr_uncomm, total_pr_comming)
         print (str_exted)
         print (str_cons)
         print (str_comm)

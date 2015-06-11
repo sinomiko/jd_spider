@@ -19,6 +19,8 @@ import random
 
 import errno
 
+import http.client
+
 
 
 exitFlag = 0
@@ -97,31 +99,11 @@ class ConosultThread(threading.Thread):
             if full_url:
                 jda.get_product_consults(full_url)
             else:
-                print("咨询线程[%d]提取产品为空，等待。。。" % self.threadID)
+                print("咨询线程[%d]提取产品为空，等待..." % self.threadID)
                 time.sleep(10)
 	    
         print ("退出商品咨询线程 %d ..." % self.threadID)
 
-class CommentThread(threading.Thread):
-    def __init__(self, threadID):
-        threading.Thread.__init__(self)
-        self.threadID = threadID
-        
-    def run(self):
-        print ("启动商品评论线程 %d ...\n" % self.threadID)
-        jda = JdAnysisComment(self.threadID)
-        jdb = Jd_Db(jd_config.SQLITE_DB)
-        while True:
-            with gdb_lock:
-                full_url = jdb.db_query_comment()
-                
-            if full_url:
-                jda.get_product_comments(full_url)
-            else:
-                print("评论线程[%d]提取产品为空，等待。。。" % self.threadID)
-                time.sleep(10)
-	    
-        print ("退出商品评论线程 %d ..." % self.threadID)        
         
 class JdAnysisConsult:
     def __init__(self, tid = 0):
@@ -153,6 +135,8 @@ class JdAnysisConsult:
             except UnicodeDecodeError:
                 print ("GBK/Unicode编解码错误!")
                 return
+            except http.client.IncompleteRead:
+                continue
             except Exception as e:
                 if flag > 3 :
                     print ("咨询线程[%d]网络异常，放弃该产品" % self.tid) 
@@ -236,6 +220,8 @@ class JdAnysisConsult:
                     print ("GBK/Unicode编解码错误!")
                     f.close()
                     return		
+                except http.client.IncompleteRead:
+                    continue	
                 except Exception as e:
                     if flag > 3 :
                         print ("咨询线程[%d]网络异常，放弃该产品" % self.tid) 
@@ -296,201 +282,6 @@ class JdAnysisConsult:
         return count
 
         
-class JdAnysisComment:
-    def __init__(self, tid = 0):
-        self.tid = tid
-        self.agent = None     
-        pass
-    
-    def get_product_comments(self, product_url):
-        result_path = jd_config.JDSPR_RESULT
-        self.agent = random_jd_header()
-        page_id = 1    
-        product_id = int(product_url.split('.')[2].split('/')[1])
-        product_url = jd_item_url % product_id
-        
-        flag = 0
-        while True:
-            try:
-                request = urllib.request.Request(product_url, headers = self.agent)
-                g_response = urllib.request.urlopen(request)
-                if g_response.info().get('Content-Encoding') == 'gzip':
-                    g_read = zlib.decompress(g_response.read(), 16+zlib.MAX_WBITS)
-                else:    
-                    g_read = g_response.read()
-                
-                product_html = jd_utils.encoding(g_read)
-                #操作正常
-                break
-            except UnicodeDecodeError:
-                print ("GBK/Unicode编解码错误!")
-                return
-            except Exception as e:
-                if flag > 3 :
-                    print ("评论线程[%d]网络异常，放弃该产品" % self.tid) 
-                    return
-                if e.errno == errno.ECONNRESET:
-                    flag = flag + 1
-                    time.sleep(10)
-                    print ("评论线程[%d]重试中...[%d]"%( self.tid, flag) )
-                    continue
-                print ("1.其它异常:"+str(e))
-                return
-	
-        product_name = None
-        product_ts = None
-        product_soup = BeautifulSoup(product_html)
-        product_name = product_soup.find('h1')
-        
-        #产品类别
-        product_type = product_soup.find('div', attrs={"class":"breadcrumb"})
-        if product_type:
-            product_ts = product_type.findAll('a')
-        
-        if not product_name or not product_ts:
-            print("1.产品名称和类别提取错误，返回！Check[%s]" % product_url)
-            print(self.agent['User-Agent'])
-            return
-        
-        result_file = None
-        try:
-            i = 0    
-            for pt_item in product_ts:
-                if pt_item:
-                    result_path = result_path + "/" + pt_item.string + "/"
-                    i = i + 1
-                    #目录类别的深度
-                    if i > 3:
-                        break
-                else:
-                    print("2.提取产品名称和目录错误！:%s, Check[%s]" % ( str(e), product_url) )
-                    return
-            
-            if not os.path.exists(result_path):
-                os.makedirs(result_path) 
-            result_file = "%s/%d_comm.txt"%(result_path,product_id)
-            if os.path.exists(result_file):
-                return
-            
-            #print ("产品保存地址：%s",result_path)    
-            print ("评论线程[%d]正在处理商品 %d" % ( self.tid, product_id ))
-            f = codecs.open(result_file, 'wb',encoding = 'utf-8')   
-            f.write("产品名称：" + product_name.text + "\n")
-        except Exception as e:
-            print("3.提取产品名称和目录错误！:%s, Check[%s]" % ( str(e), product_url) )
-            if result_file and os.path.exists(result_file):
-                try:
-                    os.remove(result_file)
-                except:
-                    pass
-            return
-            
-        count = 0 
-        retries = 0
-        while  True:
-            product_comment_url = jd_comment_url % ( product_id, page_id )
-            #print ("=============> DOING... " + product_comment_url)
-            flag = 0
-            progress = "."
-            while True:
-                progress = progress + "."
-                try:
-                    self.agent = random_jd_header(product_url)
-                    request = urllib.request.Request(product_comment_url, headers = self.agent)
-                    g_response = urllib.request.urlopen(request)
-                    
-                    if g_response.info().get('Content-Encoding') == 'gzip':
-                        g_read = zlib.decompress(g_response.read(), 16+zlib.MAX_WBITS)
-                    else:    
-                        g_read = g_response.read()
-                    
-                    comment_html = jd_utils.encoding(g_read)
-                
-                    #操作正常
-                    break
-                except UnicodeDecodeError:
-                    print ("GBK/Unicode编解码错误!")
-                    f.close()
-                    return		
-                except Exception as e:
-                    if flag > 3 :
-                        print ("评论线程[%d]网络异常，放弃该产品" % self.tid) 
-                        f.close()
-                        return
-                    if e.errno == errno.ECONNRESET:
-                        flag = flag + 1
-                        time.sleep(2)
-                        print ("评论线程[%d]重试中...[%d]" % ( self.tid, flag) )
-                        continue
-                    print ("2.其它异常:"+str(e))
-                    f.close()
-                    return
-            
-            comment_soup = BeautifulSoup(comment_html)
-            count_t = self.get_page_comment(comment_soup, product_comment_url , f)
-            
-            #retry twice here:
-            if count_t == 0 and retries < 3:
-                retries = retries + 1
-                if count != 0:
-                    # Refresh user agent
-                    self.agent = random_jd_header()
-                    time.sleep( random.randint(1, 7))
-                print("评论线程[%d] Retry[%d] with %s" %( self.tid, retries, product_comment_url))               
-                continue
-            
-            retries = 0
-            count = count + count_t
-            
-            if count == 0 and progress == "..":
-                print("评论线程[%d] - 商品咨询为空，删除商品文件:%s" %( self.tid , result_file))
-                if result_file and os.path.exists(result_file):
-                    try:
-                        os.remove(result_file)
-                    except:
-                        pass
-                return                  
-            
-                           
-            pagination = comment_soup.find('div', attrs = {"class":"pagin fr"})
-            if not pagination:
-                break;
-            if not pagination.findAll('a',attrs = {"class":"next"}) :
-                break;
-            else:
-                page_id = page_id + 1;
-                f.flush()
-            
-        print ("评论线程[%d]处理完毕，评论[%d] %d" % ( self.tid, count, product_id ))
-        f.close()
-        
-    def get_page_comment(self, page_soup, debug_url, store = 0):
-        count = 0
-        result_str = ""
-        comm_part = page_soup.find('div', attrs = {"class":"m", "id":"comments-list" })
-        if not comm_part:
-            print("评论线程[%d]无法找到评论部分。。。" % ( self.tid ))
-            return 0
-        liResult = comm_part.findAll('div', attrs = {"class":"mc", "id":re.compile(r"comment-.*") })
-        if not liResult:
-            return 0
-        for comm in liResult:
-            comm_content = comm.find('div', attrs = {"class": "comment-content"})
-            if comm_content:
-                dl_content = comm_content.findAll('dl')
-                for dl_item in dl_content:
-                    if dl_item.dt and dl_item.dt.string and dl_item.dt.string == '心　　得：':
-                        if dl_item.dd.string:
-                            strs = dl_item.dd.string.strip()
-                            if strs:
-                                result_str = result_str + strs + "\n"
-                                count = count + 1
-        if(store):
-            store.write(result_str)
-        else:
-            print (result_str)
-        return count
-
 def get_product_ids(url, jdb, tid):
     flag = 0
     while True:
@@ -507,6 +298,8 @@ def get_product_ids(url, jdb, tid):
             url_soup = BeautifulSoup(url_html)
             url_extend = url_soup.findAll('a', attrs = {"href": re.compile(r"^http://\w+.jd.com/.+\.(htm|html)$")})
             break
+        except http.client.IncompleteRead:
+            continue
         except Exception as e:
             if flag > 3 :
                 print ("网络异常，放弃展开URL") 
@@ -543,30 +336,3 @@ def get_product_ids(url, jdb, tid):
             for item in no_prds:
                 jdb.db_insert_no_product(item)
 
-if __name__ == "__main__":
-    #jd = JdAnysisComment()
-    #jd.get_product_comments('http://item.jd.com/1250980.html')
-    #
-    service_args = ['--load-images=no','--disk-cache=true','--output-encoding=utf8']
-    driver = webdriver.PhantomJS(service_args=service_args)
-    driver.set_window_size(1120, 550)
-    for num in range(2560):
-        url = "http://club.jd.com/review/%d-3-%d-0.html" % (751624, num)
-        driver.get(url)
-        #with open("res.html","w") as frlt:
-        #    frlt.write(driver.page_source)
-        scr = 'screen-%d.png'%(num)
-        driver.save_screenshot(scr)
-        url_html = driver.page_source
-        url_html = codecs.encode(url_html,"utf-8",'ignore')
-        match = re.search(r"""(?<![-\w])                  #1
-                          (?:(?:en)?coding|charset)   #2
-                          (?:=(["'])?([-\w]+)(?(1)\1) #3
-                          |:\s*([-\w]+))""".encode("utf8"),
-                                           url_html, re.IGNORECASE|re.VERBOSE)
-        encoding = match.group(match.lastindex) if match else b"utf8"        
-        print("===>",encoding)
-        #print(url_html.decode(encoding.decode("UTF-8"),'ignore'))
-        time.sleep(5)
-        #page_soup = BeautifulSoup(driver.page_source)        
-        #(url_html.decode(encoding.decode("UTF-8"),'ignore')) 

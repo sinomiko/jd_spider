@@ -4,11 +4,23 @@
 import os
 import random
 
-PRJ_PATH = "./jd_spider_data/"
+PWD = os.getcwd()
+PRJ_PATH = PWD+"/jd_spider_data/"
 SQLITE_PATH = PRJ_PATH + "/database/"
 SQLITE_DB = "jd_db.db"
 
+# New distribute configure
+# For node upload collect results
+SERVER_ADDR = "192.3.90.124"
+# SERVER_ADDR = "192.168.1.163"
+# SERVER_ADDR = "127.0.0.1"
+SERVER_PORT = 12306
+SERVER_USER = "fakeaaa"
+SERVER_PASS = "fakebbb"
+
 JDSPR_RESULT = PRJ_PATH+"/www.jd.com"
+JDSPR_RESULT_LOCAL = PRJ_PATH+"/jd_local"
+JDSPR_RESULT_SERVER = PRJ_PATH+"/jd_server"
 
 JDSPR_START_URL = "http://channel.jd.com/electronic.html"
 
