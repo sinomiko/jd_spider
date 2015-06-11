@@ -1,6 +1,9 @@
-#!/usr/bin/python -*- coding: utf-8 -*- encoding=utf-8
+#!/usr/bin/python 
+#-*- coding: utf-8 -*- 
+#encoding=utf-8
+
 import jd_config
-import jd_logger
+import jd_utils
 
 import urllib.request
 import urllib.error
@@ -10,7 +13,6 @@ import zlib
 import re
 import os
 import sys
-import jd_utils
 import threading
 import time
 from bs4 import BeautifulSoup
@@ -31,6 +33,7 @@ jd_item_url = "http://item.jd.com/%d.html"
 jd_consult_url = "http://club.jd.com/allconsultations/%d-%d-1.html"
 jd_comment_url = "http://club.jd.com/review/%d-%d-%d-0.html"
 jd_headers = {"Referer":"http://www.jd.com/",
+              "Host": "club.jd.com",
               "Content-type": "application/x-www-form-urlencoded; charset=UTF-8",
               "Accept": "*/*",
               "Connection": "keep-alive",
@@ -49,9 +52,6 @@ def random_jd_header(refer = None):
 
 result_path = ""
 
-__metaclass__ = type
-
-jdspr_log = jd_logger.Jd_Logger("JD_SPR")
 
 class CommentThread(threading.Thread):
     def __init__(self, SERV_HOST, SERV_PORT, threadID):
@@ -80,7 +80,8 @@ class CommentThread(threading.Thread):
             #    jproc_result = repr(proc_result) + ','
             #    self.sk.sendall(jproc_result.encode())
             
-            #两者之间会有jinzheng条件，暂时一起发送    
+            #两者之间会有竞争条件，原始链接的套接字可能被服务器关闭，
+            #而如果重新开个套接字连接又比较浪费，所以当前暂时一起发送    
             req_url = {'CLIENT':self.CID,'TYPE':'REQ_URL','DATA':'1'}
             if proc_result:
                 # 反馈上轮处理的结果
@@ -95,27 +96,36 @@ class CommentThread(threading.Thread):
             # 请求待处理的URL
             
             # 等待服务器返回
-            rep_url = self.sk.recv(1024).decode()
-            # 关闭，节约资源
-            self.sk.close()
+            try:
+                rep_url = self.sk.recv(1024).decode()
+            except Exception as e:
+                print("jd_comments Socket Error:", str(e))
+                continue
+            finally:
+                # 关闭，节约资源
+                self.sk.close()
             
             if not rep_url:
                 print("服务器响应错误！")
                 continue
             
+            
             jrep_url = eval(rep_url)[0]
-            if jrep_url['CLIENT'] == self.CID and jrep_url['TYPE'] == 'REP_URL':
+            if jrep_url and jrep_url['CLIENT'] == self.CID and jrep_url['TYPE'] == 'REP_URL':
                 full_url = jrep_url['DATA']['PURL']
+                # 用户服务器告诉客户端SCP上传文件的目录
                 if self.up_path == "":
                     self.up_path = jrep_url['DATA']['PATH']
             else:
                 full_url = ""
+
+            if not full_url:
+                print("服务器返回的URL为空！")
+                continue
               
             # 处理URL对应的产品评论 
-            if full_url:
-                ret = jda.get_product_comments(full_url)
-            else:
-                print("评论线程[%d]提取产品为空，等待..." % self.threadID)
+            print("客户端线程[%d]:%s" %(self.threadID, full_url))
+            ret = jda.get_product_comments(full_url)
             
             # 反馈服务器处理结果
             # PID-COUNT-LUCK
@@ -135,7 +145,8 @@ class CommentThread(threading.Thread):
                             pass                    
                     ssh.close()
                 except Exception as e:
-                    pass
+                    print("客户线程异常："+str(e))
+                    continue 
             else:
                 proc_result = {'CLIENT':self.CID,'TYPE':'FINISH','DATA':{'PURL':'','CNT':0,'LUCK':0,'PATH':'', 'PID':0}}
             
@@ -238,14 +249,14 @@ class JdAnysisComment:
         retries = 0
         while  True:
             # random page url to avoid block
-            product_comment_url = jd_comment_url % ( product_id, random.randint(3,20), page_id )
+            product_comment_url = jd_comment_url % ( product_id, random.randint(3,10), page_id )
             #print ("=============> DOING... " + product_comment_url)
             flag = 0
             progress = "."
             while True:
                 progress = progress + "."
                 try:
-                    self.agent = random_jd_header(product_url)
+                    self.agent = random_jd_header(product_comment_url)
                     request = urllib.request.Request(product_comment_url, headers = self.agent)
                     g_response = urllib.request.urlopen(request)
                     
@@ -289,7 +300,7 @@ class JdAnysisComment:
                     retries = retries + 1
                     if count != 0:
                         # Refresh user agent
-                        self.agent = random_jd_header()
+                        self.agent = random_jd_header(product_comment_url)
                         time.sleep( random.randint(3, 9))
                     print("评论线程[%d] R[%d] %s" %( self.tid, retries, product_comment_url))               
                     continue

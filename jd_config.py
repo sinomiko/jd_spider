@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding:utf-8
-# manning  2015-1-27
+# manning  2015-6-11
 import os
 import random
 
@@ -10,16 +10,19 @@ SQLITE_PATH = PRJ_PATH + "/database/"
 SQLITE_DB = "jd_db.db"
 
 # New distribute configure
-# For node upload collect results
+# For node use to upload results
 SERVER_ADDR = "192.3.90.124"
 # SERVER_ADDR = "192.168.1.163"
 # SERVER_ADDR = "127.0.0.1"
-SERVER_PORT = 12306
+SERVER_PORT = 12399
 SERVER_USER = "fakeuser"
 SERVER_PASS = "fakeuser"
 
+# 服务器最终汇总评论结果的路径
 JDSPR_RESULT = PRJ_PATH+"/www.jd.com"
+# 客户端用来临时存储抓取结果的路径
 JDSPR_RESULT_LOCAL = PRJ_PATH+"/jd_local"
+# 服务器分发给客户端，用户客户端SCP上传结果的路径
 JDSPR_RESULT_SERVER = PRJ_PATH+"/jd_server"
 
 JDSPR_START_URL = "http://channel.jd.com/electronic.html"

@@ -4,7 +4,6 @@
 
 import jd_config
 import jd_spider
-import jd_logger
 
 import os
 import time
@@ -16,13 +15,11 @@ threads_comment = []
 
 if __name__ == '__main__':
     
-    main_log = jd_logger.Jd_Logger("MAIN")
     
     if not os.path.exists(jd_config.JDSPR_RESULT_LOCAL):
         os.makedirs(jd_config.JDSPR_RESULT_LOCAL)        
-	
     
-    main_log.info("初始化","开启商品评论抓取线程")
+    print("启动商品评论抓取客户端线程")
     for i in range(20, 32):
         t = CommentThread(jd_config.SERVER_ADDR, jd_config.SERVER_PORT, i)
         t.start()
@@ -30,7 +27,7 @@ if __name__ == '__main__':
         threads_comment.append(t)
 		
     while True:
-        time.sleep(10)
+        time.sleep(20)
         for item in threads_comment:
             if item.isAlive():
                 print ('A ', end = '')
@@ -38,5 +35,5 @@ if __name__ == '__main__':
                 print ('D ', end = '')
         print("")        
         
-    print ("程序结束...")
+    print ("商品评论抓取程序结束...")
     
